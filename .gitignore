@@ -20,7 +20,7 @@ Package.resolved
 
 # CocoaPods (if ever added)
 Pods/
-*.xcworkspace
+/*.xcworkspace
 !default.xcworkspace
 
 # Carthage
