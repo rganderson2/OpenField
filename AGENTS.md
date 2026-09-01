@@ -55,6 +55,31 @@ xcodebuild -project OpenField.xcodeproj -scheme OpenField \
 
 Document in PR notes when iOS-only verification was not run in cloud.
 
+#### Optional: run the portable subset on Linux (supplementary)
+
+The install script only checks repo integrity — it does not compile Swift. To
+actually compile and unit-test the core logic on Linux, note that `Domain/`,
+`Services/Local/`, `Services/CloudKit/`, and
+`Services/Protocols/{EventStore,EventSyncing}.swift` import only `Foundation`,
+and **both** XCTest suites (`OpenFieldTests/InMemoryEventStoreTests.swift`,
+`OpenFieldTests/LocationPingThrottleTests.swift`) reference only that portable
+subset. They can be built/run on **Swift-for-Linux** via a *standalone* SwiftPM
+harness built **outside** the repo (do not add a `Package.swift` — it is
+Xcode-only by design):
+
+1. Install a Swift toolchain (e.g. `swiftly install latest`) plus its apt deps
+   (`gnupg2 libcurl4-openssl-dev libpython3-dev libxml2-dev libncurses-dev libz3-dev`).
+2. Create a SwiftPM package with module name **`OpenField`** (so
+   `@testable import OpenField` resolves) and test target `OpenFieldTests`. Copy
+   in the portable sources above plus the two test files unmodified, then
+   `swift build` / `swift test`.
+
+Do **not** copy these non-portable files into the harness — they need Apple
+frameworks: `Location/LocationService.swift`, `Mapping/MapCoordinateAdapters.swift`,
+`App/*.swift`, `Services/Protocols/LocationProviding.swift`. This subset run is
+supplementary only; it is **not** the product's real build and does not cover UI,
+MapKit/CoreLocation wrappers, or the SwiftUI app target.
+
 ## Implementation order (when building features)
 
 1. `CloudKitEventStore` (real adapter)
