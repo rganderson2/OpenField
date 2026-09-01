@@ -84,3 +84,14 @@ Do **not** call `CKContainer.default()` until the capability and container exist
 ## License / cost posture
 
 Prefer Apple frameworks only (SwiftUI, MapKit, Core Location, CloudKit later). No Firebase, Google Maps, or paid chat SDKs in scope.
+
+## Cursor Cloud Agents
+
+Cloud environment config lives in `.cursor/environment.json` (install script + `AGENTS.md`).
+
+1. Open [Cursor Cloud Agents](https://cursor.com/dashboard/cloud-agents) → **New Environment**
+2. Select **`rganderson2/OpenField`** (repo must be accessible to the Cursor GitHub App)
+3. Click **Start Agent** — the install script runs during the first Build (~10–20 min)
+4. After success, future cloud/mobile agents start from the saved Build
+
+Cloud VMs are Linux: agents edit Swift and open PRs here; **Xcode builds run on macOS** locally.
