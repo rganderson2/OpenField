@@ -1,43 +1,99 @@
-# OpenField
+# OpenField — Agent Instructions
 
-Native **iOS** app (Swift 5.9+/SwiftUI, iOS 17 min, Xcode `.xcodeproj`) scaffolding
-co-located outdoor team events. See `README.md` for architecture and build/run steps.
+Outdoor co-located team events (scavenger hunt / checkpoint style). iOS 17+, SwiftUI, MapKit, Core Location, CloudKit (stubbed).
 
-> Note: the product code lives on branch `scaffold/ios-architecture`, not `main`
-> (which is an empty scaffold containing only `.gitattributes`).
+## Architecture (read first)
+
+```
+OpenField/App/           — OpenFieldApp, AppDependencies (DI), blank ContentView
+OpenField/Domain/        — Models, policies, errors (no MapKit/CloudKit)
+OpenField/Services/      — EventStore protocol, InMemoryEventStore, CloudKit stub
+OpenField/Location/      — LocationService (CLLocationManager wrapper)
+OpenField/Mapping/       — MapKit coordinate adapters (no Views)
+```
+
+Protocol-oriented boundaries: swap `InMemoryEventStore` ↔ `CloudKitEventStore` without rewriting domain logic.
+
+## Scope constraints
+
+- **No product UI** unless explicitly requested (no Home/Host/Map/Chat screens).
+- **No live CloudKit / network I/O** unless explicitly requested.
+- Prefer zero third-party SPM dependencies.
+- Keep MapKit imports in `OpenField/Mapping/` only; domain models use `Double` lat/lon.
 
 ## Cursor Cloud specific instructions
 
-### Platform reality (read first)
-- This is an iOS/Xcode app. The **real** build/run/test/lint path is **macOS + Xcode 15+**:
-  open `OpenField.xcodeproj`, select the `OpenField` scheme, pick an iOS 17+ Simulator,
-  Run (⌘R) / Test (⌘U). See `README.md`. There is **no lint tooling** configured
-  (no SwiftLint/SwiftFormat); linting is limited to Xcode / `xcodebuild analyze`.
-- The Cursor Cloud VM is **Linux**. You **cannot** build or run the full app, launch an
-  iOS Simulator, or run `xcodebuild` here — Xcode is macOS-only, and the app imports
-  Apple-only frameworks (`SwiftUI`, `MapKit`, `CoreLocation`, `Observation`, `CloudKit`).
-  Full end-to-end verification must be done on a macOS host.
-- There is **no package manager, no dependencies, no CI, no Docker**. The update script
-  is intentionally a no-op; nothing needs installing to work with the repo.
+Cloud agents run on **Linux (Ubuntu)**. This repo is an **iOS/Xcode** project.
 
-### What you *can* verify on Linux (non-obvious)
-The `Domain/`, `Services/Local/`, `Services/CloudKit/`, and
-`Services/Protocols/{EventStore,EventSyncing}.swift` files import only `Foundation`,
+### What cloud agents CAN do here
+
+- Edit Swift source under `OpenField/` and `OpenFieldTests/`
+- Extend domain models, protocols, in-memory store, CloudKit stubs, docs
+- Review architecture and propose PRs
+- Run `./.cursor/install.sh` (also invoked automatically during Builds)
+
+### What cloud agents CANNOT do here
+
+- Run `xcodebuild`, iOS Simulator, or sign iOS apps (requires macOS + Xcode)
+- Enable CloudKit entitlements or test on-device location
+- Assume `swift build` works for the full app target (Apple-only frameworks)
+
+### Verification on cloud
+
+After code changes, run the install script to confirm repo integrity:
+
+```bash
+./.cursor/install.sh
+```
+
+Full compile/test loop happens on **macOS**:
+
+```bash
+xcodebuild -project OpenField.xcodeproj -scheme OpenField \
+  -destination 'platform=iOS Simulator,name=iPhone 17' build test
+```
+
+Document in PR notes when iOS-only verification was not run in cloud.
+
+#### Optional: run the portable subset on Linux (supplementary)
+
+The install script only checks repo integrity — it does not compile Swift. To
+actually compile and unit-test the core logic on Linux, note that `Domain/`,
+`Services/Local/`, `Services/CloudKit/`, and
+`Services/Protocols/{EventStore,EventSyncing}.swift` import only `Foundation`,
 and **both** XCTest suites (`OpenFieldTests/InMemoryEventStoreTests.swift`,
-`OpenFieldTests/LocationPingThrottleTests.swift`) reference only that portable subset.
-So the core domain/services logic and the existing unit tests can be compiled and run on
-**Swift-for-Linux** via a *standalone* SwiftPM harness built **outside** the repo (do not
-add a `Package.swift` to the repo — it is Xcode-only by design):
+`OpenFieldTests/LocationPingThrottleTests.swift`) reference only that portable
+subset. They can be built/run on **Swift-for-Linux** via a *standalone* SwiftPM
+harness built **outside** the repo (do not add a `Package.swift` — it is
+Xcode-only by design):
 
 1. Install a Swift toolchain (e.g. `swiftly install latest`) plus its apt deps
    (`gnupg2 libcurl4-openssl-dev libpython3-dev libxml2-dev libncurses-dev libz3-dev`).
-2. Create a SwiftPM package with module name **`OpenField`** (so `@testable import OpenField`
-   resolves) and test target `OpenFieldTests`. Copy in the portable sources above plus the
-   two test files unmodified, then `swift build` / `swift test`.
+2. Create a SwiftPM package with module name **`OpenField`** (so
+   `@testable import OpenField` resolves) and test target `OpenFieldTests`. Copy
+   in the portable sources above plus the two test files unmodified, then
+   `swift build` / `swift test`.
 
-**Do not** copy these non-portable files into the harness — they need Apple frameworks:
-`Location/LocationService.swift`, `Mapping/MapCoordinateAdapters.swift`, `App/*.swift`,
-`Services/Protocols/LocationProviding.swift`.
+Do **not** copy these non-portable files into the harness — they need Apple
+frameworks: `Location/LocationService.swift`, `Mapping/MapCoordinateAdapters.swift`,
+`App/*.swift`, `Services/Protocols/LocationProviding.swift`. This subset run is
+supplementary only; it is **not** the product's real build and does not cover UI,
+MapKit/CoreLocation wrappers, or the SwiftUI app target.
 
-This subset run is supplementary evidence only; it is **not** the product's real build and
-does not cover UI, MapKit/CoreLocation wrappers, or the SwiftUI app target.
+## Implementation order (when building features)
+
+1. `CloudKitEventStore` (real adapter)
+2. Host flow UI
+3. Live map (MapKit markers + location pings)
+4. Event chat
+5. Profile / settings polish
+
+## Key files
+
+| Concern | Location |
+| --- | --- |
+| Event persistence API | `OpenField/Services/Protocols/EventStore.swift` |
+| Local store (tests/previews) | `OpenField/Services/Local/InMemoryEventStore.swift` |
+| CloudKit stub | `OpenField/Services/CloudKit/CloudKitEventStore.swift` |
+| Location throttle policy | `OpenField/Domain/Policies/LocationPingThrottle.swift` |
+| DI composition root | `OpenField/App/AppDependencies.swift` |
